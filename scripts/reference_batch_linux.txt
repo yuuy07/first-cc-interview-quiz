@@ -1,0 +1,54 @@
+【嵌入式Linux应用】参考提纲 (17 个子话题):
+  - Linux常见指令
+  - 系统调用（System Call）的实现
+  - pthread_create() 创建线程的基本流程
+  - 线程分离（Detach）与 join 的区别
+  - Linux 中守护进程（Daemon）的创建
+  - 管道（pipe）和命名管道（FIFO）的区别
+  - 消息队列（message queue）基本使用
+  - socketpair() 与管道的区别
+  - 阻塞和非阻塞 socket 区别
+  - select、poll、epoll 的区别与使用场景
+  - LT（水平触发）和 ET（边沿触发）区别
+  - 设计一个高并发 TCP 服务
+  - 客户端断线检测方法
+  - Linux 下实现定时任务
+  - timerfd 与 signal timer 区别
+  - 实现高精度周期任务
+  - Linux 下操作 GPIO/UART/SPI/I2C
+
+【嵌入式Linux驱动】参考提纲 (17 个子话题):
+  - Linux 驱动程序与应用程序的区别
+  - 内核模块（module）及加载/卸载
+  - init_module() / cleanup_module() 或 module_init() / module_exit() 的作用
+  - 内核模块与用户态程序交互
+  - Linux 驱动开发中常用的头文件
+  - 为什么内核模块不能直接使用标准 C 库函数
+  - 字符设备的基本操作接口
+  - 字符设备驱动中 open、read、write、close 的实现
+  - ioctl 在驱动中的作用
+  - 驱动中实现阻塞/非阻塞读写
+  - 中断在驱动中的注册和使用
+  - request_irq() 作用及 ISR 中可做的操作
+  - kmalloc、vmalloc 区别及 GFP 标志用法
+  - 用户态如何通过 mmap 或 read/write 与驱动交互？
+  - ioremap() 的作用及使用
+  - 如何定位驱动中的内存泄漏？
+  - 内核调试方法有哪些？（printk、gdb、ftrace、动态调试）
+
+【补充：Bootloader、Rootfs】参考提纲 (15 个子话题):
+  - 什么是 Bootloader？它的主要作用是什么？
+  - Bootloader 和 BIOS / UEFI 有什么区别？
+  - Bootloader 启动 Linux 内核的过程是什么？
+  - U-Boot 的主要功能有哪些？
+  - U-Boot 的启动阶段（SPL / TPL）分别是什么？
+  - U-Boot 环境变量的作用是什么？
+  - U-Boot 如何加载 kernel、device tree 和 rootfs？
+  - 什么是 RootFS（根文件系统）？Linux 系统为什么必须要有 RootFS？
+  - `/init` 或 `/sbin/init` 在系统启动中有什么作用？
+  - 不同 RootFS 文件系统的使用场景是什么？
+  - initramfs 和 initrd 有什么区别
+  - Bootloader 如何指定 rootfs 的位置？
+  - Kernel 挂载 RootFS 失败可能有哪些原因？
+  - 如果 Bootloader 能启动但 Linux 内核无法启动，可能原因有哪些？
+  - Bootloader 如何实现多系统启动？
