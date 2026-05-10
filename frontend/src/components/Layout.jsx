@@ -9,6 +9,7 @@ const navItems = [
   { path: '/review', label: '错题本', icon: '📝' },
   { path: '/stats', label: '统计', icon: '📊' },
   { path: '/search', label: '搜索', icon: '🔍' },
+  { path: '/documents', label: '文档', icon: '📄' },
   { path: '/settings', label: '设置', icon: '⚙️' },
 ]
 

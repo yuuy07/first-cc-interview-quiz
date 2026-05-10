@@ -1,8 +1,12 @@
 const DEEPSEEK_BASE = 'https://api.deepseek.com/v1'
 
-export async function generateQuestion({ topic, keywords, questionType, apiKey }) {
+export async function generateQuestion({ topic, keywords, questionType, docContext, apiKey }) {
   const typeDesc = questionType === 'choice' ? '选择题（4个选项，标记正确答案索引）' : '主观题'
   const keywordHint = keywords ? `，关键词：${keywords}` : ''
+  const docHint = docContext
+    ? `\n\n请参考以下文档内容出题，确保题目和答案贴合这些参考资料：\n${docContext}`
+    : ''
+
   const res = await fetch(`${DEEPSEEK_BASE}/chat/completions`, {
     method: 'POST',
     headers: {
@@ -22,7 +26,7 @@ ${questionType === 'choice'
         },
         {
           role: 'user',
-          content: `话题：${topic}${keywordHint}。请出一道嵌入式/C++/操作系统方向的面试题。`,
+          content: `话题：${topic}${keywordHint}。请出一道嵌入式/C++/操作系统方向的面试题。${docHint}`,
         },
       ],
       temperature: 0.7,

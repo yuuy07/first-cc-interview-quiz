@@ -9,6 +9,7 @@ import Stats from './pages/Stats'
 import Search from './pages/Search'
 import Settings from './pages/Settings'
 import AIGenerate from './pages/AIGenerate'
+import Documents from './pages/Documents'
 
 export default function App() {
   return (
@@ -24,6 +25,7 @@ export default function App() {
           <Route path="/search" element={<Search />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/ai-generate" element={<AIGenerate />} />
+          <Route path="/documents" element={<Documents />} />
         </Routes>
       </Layout>
     </BrowserRouter>

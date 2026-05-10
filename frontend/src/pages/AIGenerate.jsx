@@ -3,13 +3,15 @@ import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { supabase } from '../lib/supabase'
 import { generateQuestion, evaluateAnswer } from '../lib/deepseek'
-import LoadingSpinner from '../components/LoadingSpinner'
+import { getBuiltInDocs, getUploadedDocs, searchDocuments } from '../lib/docStore'
 
 export default function AIGenerate() {
   const [topics, setTopics] = useState([])
   const [selectedTopic, setSelectedTopic] = useState('')
   const [keywords, setKeywords] = useState('')
   const [questionType, setQuestionType] = useState('subjective')
+  const [availableDocs, setAvailableDocs] = useState([])
+  const [selectedDocs, setSelectedDocs] = useState({})
   const [question, setQuestion] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
@@ -25,6 +27,15 @@ export default function AIGenerate() {
       data?.forEach(q => set.add(q.topic))
       setTopics([...set].sort())
     })
+
+    Promise.all([getBuiltInDocs(), getUploadedDocs()]).then(([builtIn, uploaded]) => {
+      const all = [...builtIn, ...uploaded]
+      setAvailableDocs(all)
+      // Default: select all built-in docs
+      const initial = {}
+      builtIn.forEach(d => { initial[d.id || d.name] = true })
+      setSelectedDocs(initial)
+    })
   }, [])
 
   function reset() {
@@ -37,18 +48,39 @@ export default function AIGenerate() {
     setError(null)
   }
 
+  function toggleDoc(key) {
+    setSelectedDocs(prev => ({ ...prev, [key]: !prev[key] }))
+  }
+
   async function handleGenerate() {
     const apiKey = localStorage.getItem('deepseek_api_key')
     if (!apiKey) { setError('请先在设置中填入 DeepSeek API Key'); return }
     if (!selectedTopic) { setError('请选择话题'); return }
+
+    const activeDocIds = Object.entries(selectedDocs).filter(([, v]) => v).map(([k]) => k)
+    if (activeDocIds.length === 0) { setError('请至少选择一个参考文档'); return }
+
     setLoading(true)
     setError(null)
     reset()
+
     try {
+      // Fetch relevant document excerpts
+      const searchKw = keywords || selectedTopic
+      const excerpts = await searchDocuments(activeDocIds, searchKw)
+
+      // Prepare document context for the AI prompt
+      const docContext = excerpts.length > 0
+        ? '以下是参考文档中与题目相关的内容：\n\n' + excerpts.map(e =>
+            `[${e.source} - ${e.keyword}]\n${e.excerpt}`
+          ).join('\n\n---\n\n')
+        : ''
+
       const result = await generateQuestion({
         topic: selectedTopic,
         keywords: keywords || undefined,
         questionType,
+        docContext,
         apiKey,
       })
       setQuestion(result)
@@ -124,9 +156,28 @@ export default function AIGenerate() {
           </div>
         </div>
 
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            参考文档（AI 将从这些文档中查找相关内容出题）
+          </label>
+          <div className="space-y-1 max-h-40 overflow-y-auto">
+            {availableDocs.map(doc => {
+              const key = doc.id || doc.name
+              return (
+                <label key={key} className="flex items-center gap-2 p-1.5 rounded hover:bg-gray-50 cursor-pointer text-sm">
+                  <input type="checkbox" checked={!!selectedDocs[key]}
+                    onChange={() => toggleDoc(key)} className="rounded" />
+                  <span>{doc.name}</span>
+                  {doc.builtIn && <span className="text-xs text-gray-400">(内置)</span>}
+                </label>
+              )
+            })}
+          </div>
+        </div>
+
         <button onClick={handleGenerate} disabled={loading || !selectedTopic}
           className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50">
-          {loading ? '生成中...' : '🎯 出题'}
+          {loading ? '搜索文档并生成中...' : '🎯 出题'}
         </button>
 
         {error && <p className="text-red-500 text-sm">{error}</p>}
