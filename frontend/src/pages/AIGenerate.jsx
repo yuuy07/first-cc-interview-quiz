@@ -20,8 +20,11 @@ export default function AIGenerate() {
   const [evalResult, setEvalResult] = useState(null)
   const [evalLoading, setEvalLoading] = useState(false)
   const [showAnswer, setShowAnswer] = useState(false)
+  const [user, setUser] = useState(null)
 
   useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => setUser(data?.user ?? null))
+
     supabase.from('questions').select('topic').then(({ data }) => {
       const set = new Set()
       data?.forEach(q => set.add(q.topic))
@@ -31,7 +34,6 @@ export default function AIGenerate() {
     Promise.all([getBuiltInDocs(), getUploadedDocs()]).then(([builtIn, uploaded]) => {
       const all = [...builtIn, ...uploaded]
       setAvailableDocs(all)
-      // Default: select all built-in docs
       const initial = {}
       builtIn.forEach(d => { initial[d.id || d.name] = true })
       setSelectedDocs(initial)
@@ -65,11 +67,9 @@ export default function AIGenerate() {
     reset()
 
     try {
-      // Fetch relevant document excerpts
       const searchKw = keywords || selectedTopic
       const excerpts = await searchDocuments(activeDocIds, searchKw)
 
-      // Prepare document context for the AI prompt
       const docContext = excerpts.length > 0
         ? '以下是参考文档中与题目相关的内容：\n\n' + excerpts.map(e =>
             `[${e.source} - ${e.keyword}]\n${e.excerpt}`
@@ -91,6 +91,43 @@ export default function AIGenerate() {
     }
   }
 
+  async function saveToReview(wasCorrect) {
+    if (!user || !question) return
+
+    const qType = questionType === 'choice'
+      ? (question.choices?.length === 2 ? 'judge' : 'choice')
+      : 'subjective'
+
+    // Insert the AI question into questions table
+    const { data: qData, error: qErr } = await supabase.from('questions').insert({
+      topic: selectedTopic,
+      subtopic: keywords || 'AI出题',
+      question: question.question,
+      answer: question.answer,
+      choices: question.choices || null,
+      correct_idx: question.correct_idx ?? null,
+      difficulty: 3,
+      tags: ['ai_generated'],
+      code_blocks: [],
+      question_type: qType,
+      source_id: null,
+      display_order: Date.now(),
+    }).select('id').single()
+
+    if (qErr) { console.error('保存题目失败:', qErr.message); return }
+
+    // Insert user_progress
+    await supabase.from('user_progress').upsert({
+      user_id: user.id,
+      question_id: qData.id,
+      status: wasCorrect ? 'correct' : 'wrong',
+      attempt_count: 1,
+      last_answer: userAnswer || (question.choices?.[selectedChoice] || ''),
+      last_reviewed: new Date().toISOString(),
+      session_type: 'quiz',
+    }, { onConflict: 'user_id,question_id,session_type' })
+  }
+
   async function handleSubmit() {
     if (questionType === 'choice') {
       if (selectedChoice === null) return
@@ -103,6 +140,8 @@ export default function AIGenerate() {
         strengths: correct ? ['正确选择了答案'] : [],
         weaknesses: correct ? [] : ['答案选择错误'],
       })
+      setShowAnswer(true)
+      if (!correct) saveToReview(false)
       return
     }
 
@@ -112,6 +151,9 @@ export default function AIGenerate() {
     try {
       const result = await evaluateAnswer(question.question, question.answer, userAnswer, apiKey)
       setEvalResult(result)
+      setShowAnswer(true)
+      const score = result?.score || 0
+      if (score < 5) saveToReview(false)
     } catch (e) {
       setError('批改失败：' + e.message)
     } finally {
@@ -227,13 +269,6 @@ export default function AIGenerate() {
             </div>
           )}
 
-          {showAnswer && (
-            <div className="mt-4 p-4 bg-blue-50 rounded-lg">
-              <strong>参考答案：</strong>
-              <div className="mt-1 prose prose-sm max-w-none"><Markdown remarkPlugins={[remarkGfm]}>{question.answer}</Markdown></div>
-            </div>
-          )}
-
           {evalResult && (
             <div className="mt-4 p-4 bg-green-50 rounded-lg">
               <p className="text-lg font-bold">评分：{evalResult.score}/10</p>
@@ -248,6 +283,16 @@ export default function AIGenerate() {
                   <ul className="list-disc ml-5 text-orange-700">{evalResult.weaknesses.map((w, i) => <li key={i}>{w}</li>)}</ul>
                 </div>
               )}
+              {evalResult.score < 5 && (
+                <p className="text-xs text-gray-400 mt-2">（已自动记入错题本）</p>
+              )}
+            </div>
+          )}
+
+          {showAnswer && (
+            <div className="mt-4 p-4 bg-blue-50 rounded-lg">
+              <strong>参考答案：</strong>
+              <div className="mt-1 prose prose-sm max-w-none"><Markdown remarkPlugins={[remarkGfm]}>{question.answer}</Markdown></div>
             </div>
           )}
 

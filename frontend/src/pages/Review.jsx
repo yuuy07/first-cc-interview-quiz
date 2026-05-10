@@ -58,7 +58,10 @@ export default function Review() {
       <div className="space-y-3">
         {filtered.map(w => (
           <div key={w.id} className="bg-white rounded-lg p-4 border hover:shadow-sm">
-            <p className="font-medium">{w.questions?.question}</p>
+            <p className="font-medium">
+              {w.questions?.question}
+              {w.questions?.tags?.includes('ai_generated') && <span className="text-xs bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded ml-2">AI</span>}
+            </p>
             <p className="text-sm text-gray-500 mt-1">
               {w.questions?.topic} · 答错 {w.attempt_count} 次 · 上次 {new Date(w.last_reviewed).toLocaleDateString()}
             </p>
