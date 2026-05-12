@@ -105,6 +105,7 @@ export default function MockSession() {
           <textarea value={userAnswer} onChange={e => setUserAnswer(e.target.value)}
             placeholder="输入你的回答..."
             className="w-full h-32 p-3 border rounded-lg resize-y mb-3" />
+          {!userAnswer.trim() && <p className="text-xs text-red-500 mt-1">请输入回答</p>}
           <div className="flex gap-2">
             <button onClick={handleSubmit} disabled={submitting || !userAnswer.trim()}
               className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50">
@@ -131,6 +132,13 @@ export default function MockSession() {
             </span>
           </div>
           <p className="text-sm">{lastResult.feedback}</p>
+
+          {lastResult.score < 4 && currentQuestion?.expected_answer && (
+            <div className="mt-3 p-3 bg-gray-50 rounded text-sm">
+              <p className="font-medium mb-1">参考答案：</p>
+              <p className="text-gray-700">{currentQuestion.expected_answer}</p>
+            </div>
+          )}
 
           {showFollowup && lastResult.followup ? (
             <div className="mt-4 pt-4 border-t">

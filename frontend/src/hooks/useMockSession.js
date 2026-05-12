@@ -30,7 +30,7 @@ export function useMockSession() {
 
   const currentQuestion = session?.generated_questions?.[currentIndex] || null
 
-  async function createSession({ jdText, company, resumeText, topics, duration, questions }) {
+  async function createSession({ jdText, company, resumeText, topics, duration, questions, status }) {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) throw new Error('请先登录')
 
@@ -42,6 +42,7 @@ export function useMockSession() {
       topics,
       duration,
       generated_questions: questions,
+      status: status || 'in_progress',
     }).select().single()
 
     if (err) throw new Error(err.message)
@@ -73,16 +74,28 @@ export function useMockSession() {
     setSubmitting(true)
     setError(null)
     try {
-      const result = await callDeepSeek([
-        {
-          role: 'system',
-          content: '你是面试官。根据问题和参考答案评分。返回 JSON: {"score": 1-10, "feedback": "...", "followup": "追问内容或空字符串"}',
-        },
-        {
-          role: 'user',
-          content: `问题：${currentQuestion.question}\n参考答案：${currentQuestion.expected_answer}\n用户答案：${userAnswer}`,
-        },
-      ])
+      let result = null
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          result = await callDeepSeek([
+            {
+              role: 'system',
+              content: '你是面试官。根据问题和参考答案评分。返回 JSON: {"score": 1-10, "feedback": "...", "followup": "追问内容或空字符串"}',
+            },
+            {
+              role: 'user',
+              content: `问题：${currentQuestion.question}\n参考答案：${currentQuestion.expected_answer}\n用户答案：${userAnswer}`,
+            },
+          ])
+          break // success, exit retry loop
+        } catch (e) {
+          if (attempt === 0) {
+            await new Promise(r => setTimeout(r, 1000)) // wait 1s before retry
+            continue // retry once
+          }
+          throw e // second failure — propagate
+        }
+      }
 
       const { data, error: ie } = await supabase.from('interview_responses').insert({
         session_id: session.id,

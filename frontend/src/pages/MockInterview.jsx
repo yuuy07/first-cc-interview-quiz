@@ -19,6 +19,8 @@ export default function MockInterview() {
   const [jdAnalyzed, setJdAnalyzed] = useState(false)
   const [starting, setStarting] = useState(false)
   const [promptCopied, setPromptCopied] = useState(false)
+  const [editingCompany, setEditingCompany] = useState(false)
+  const [editedCompany, setEditedCompany] = useState({})
 
   async function handleAnalyzeJd() {
     if (!jdText.trim()) return
@@ -62,12 +64,18 @@ export default function MockInterview() {
     }
   }
 
-  function handleCopyPrompt() {
+  async function handleCopyPrompt() {
     const prompt = generatePrompt(jdText, resumeText, selectedTopics)
-    navigator.clipboard.writeText(prompt).then(() => {
-      setPromptCopied(true)
-      setTimeout(() => setPromptCopied(false), 2000)
-    })
+    await navigator.clipboard.writeText(prompt)
+    setPromptCopied(true)
+    setTimeout(() => setPromptCopied(false), 2000)
+    // Create a pending session for later result entry
+    try {
+      await createSession({
+        jdText, company: companyInfo?.name || null, resumeText, topics: selectedTopics, duration,
+        questions: [], status: 'pending',
+      })
+    } catch {}
   }
 
   function toggleTopic(t) {
@@ -96,12 +104,13 @@ export default function MockInterview() {
         <textarea value={jdText} onChange={e => { setJdText(e.target.value); setJdAnalyzed(false) }}
           placeholder="粘贴岗位 JD..."
           className="w-full h-32 p-3 border rounded-lg resize-y mb-2" />
+        {!jdText.trim() && <p className="text-xs text-red-500">请粘贴岗位 JD</p>}
         <div className="flex gap-2">
           <button onClick={handleAnalyzeJd} disabled={loading || !jdText.trim()}
             className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50">
             {loading ? '分析中...' : '🔍 分析技术要求'}
           </button>
-          {jdText.length > 3000 && <p className="text-xs text-amber-600 self-center">JD 超过 3000 字，将截断分析</p>}
+          {jdText.length > 3000 && <p className="text-xs text-amber-600 self-center">JD 过长，已截断分析</p>}
         </div>
       </div>
 
@@ -126,14 +135,33 @@ export default function MockInterview() {
           <button onClick={handleFetchCompany} disabled={loading || !companyName.trim()}
             className="bg-gray-200 px-4 py-2 rounded-lg text-sm hover:bg-gray-300 disabled:opacity-50">查询</button>
         </div>
-        {companyInfo && (
+        {companyInfo && !editingCompany && (
           <div className="mt-3 p-3 bg-blue-50 rounded-lg text-sm">
             <p className="text-xs text-gray-400 mb-1">⚠️ AI 生成，仅供参考</p>
             <p><strong>{companyInfo.name}</strong></p>
             <p>业务：{companyInfo.business}</p>
             <p>规模：{companyInfo.scale}</p>
             <p>技术栈：{companyInfo.techStack}</p>
-            <button onClick={() => setCompanyInfo(null)} className="text-red-500 text-xs mt-1">清除</button>
+            <div className="flex gap-2 mt-1">
+              <button onClick={() => { setEditedCompany(companyInfo); setEditingCompany(true) }}
+                className="text-blue-600 text-xs hover:underline">编辑</button>
+              <button onClick={() => setCompanyInfo(null)} className="text-red-500 text-xs hover:underline">清除</button>
+            </div>
+          </div>
+        )}
+        {companyInfo && editingCompany && (
+          <div className="mt-3 p-3 bg-blue-50 rounded-lg text-sm">
+            <p className="text-xs text-gray-400 mb-1">✏️ 编辑公司信息</p>
+            <div className="space-y-2">
+              <div><label className="text-xs text-gray-500">公司名</label><input value={editedCompany.name || ''} onChange={e => setEditedCompany(prev => ({...prev, name: e.target.value}))} className="w-full p-1 border rounded text-sm" /></div>
+              <div><label className="text-xs text-gray-500">业务</label><input value={editedCompany.business || ''} onChange={e => setEditedCompany(prev => ({...prev, business: e.target.value}))} className="w-full p-1 border rounded text-sm" /></div>
+              <div><label className="text-xs text-gray-500">规模</label><input value={editedCompany.scale || ''} onChange={e => setEditedCompany(prev => ({...prev, scale: e.target.value}))} className="w-full p-1 border rounded text-sm" /></div>
+              <div><label className="text-xs text-gray-500">技术栈</label><input value={editedCompany.techStack || ''} onChange={e => setEditedCompany(prev => ({...prev, techStack: e.target.value}))} className="w-full p-1 border rounded text-sm" /></div>
+              <div className="flex gap-2 mt-1">
+                <button onClick={() => { setCompanyInfo(editedCompany); setEditingCompany(false) }} className="bg-blue-600 text-white px-3 py-1 rounded text-xs hover:bg-blue-700">保存</button>
+                <button onClick={() => setEditingCompany(false)} className="text-gray-500 text-xs hover:underline">取消</button>
+              </div>
+            </div>
           </div>
         )}
       </div>
@@ -144,6 +172,8 @@ export default function MockInterview() {
         {suggestedTopics.length > 0 && (
           <p className="text-xs text-green-600 mb-2">AI 推荐：{suggestedTopics.join('、')}</p>
         )}
+        {jdAnalyzed && suggestedTopics.length === 0 && <p className="text-xs text-orange-600 mt-2">AI 未能识别技术方向，请手动选择</p>}
+        {jdAnalyzed && <button onClick={handleAnalyzeJd} disabled={loading} className="text-xs text-blue-600 ml-2 hover:underline">重新分析</button>}
         <div className="flex gap-2 flex-wrap">
           {topics.map(t => (
             <button key={t} onClick={() => toggleTopic(t)}
@@ -152,6 +182,7 @@ export default function MockInterview() {
               }`}>{t}</button>
           ))}
         </div>
+        {selectedTopics.length === 0 && <p className="text-xs text-red-500 mt-1">至少选择一个话题</p>}
         {error && <p className="text-red-500 text-sm mt-2">{error}</p>}
       </div>
 
