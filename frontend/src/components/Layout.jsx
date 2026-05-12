@@ -6,6 +6,7 @@ const navItems = [
   { path: '/', label: '首页', icon: '🏠' },
   { path: '/topics', label: '选题', icon: '📚' },
   { path: '/ai-generate', label: 'AI出题', icon: '🤖' },
+  { path: '/mock-interview', label: 'AI面试', icon: '🎯' },
   { path: '/review', label: '错题本', icon: '📝' },
   { path: '/stats', label: '统计', icon: '📊' },
   { path: '/search', label: '搜索', icon: '🔍' },

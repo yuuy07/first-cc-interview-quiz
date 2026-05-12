@@ -10,6 +10,9 @@ import Search from './pages/Search'
 import Settings from './pages/Settings'
 import AIGenerate from './pages/AIGenerate'
 import Documents from './pages/Documents'
+import MockInterview from './pages/MockInterview'
+import MockSession from './pages/MockSession'
+import MockReview from './pages/MockReview'
 
 export default function App() {
   return (
@@ -26,6 +29,9 @@ export default function App() {
           <Route path="/settings" element={<Settings />} />
           <Route path="/ai-generate" element={<AIGenerate />} />
           <Route path="/documents" element={<Documents />} />
+          <Route path="/mock-interview" element={<MockInterview />} />
+          <Route path="/mock-interview/session" element={<MockSession />} />
+          <Route path="/mock-interview/review" element={<MockReview />} />
         </Routes>
       </Layout>
     </BrowserRouter>
