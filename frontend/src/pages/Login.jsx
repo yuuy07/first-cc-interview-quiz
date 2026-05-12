@@ -7,15 +7,24 @@ export default function Login() {
   const [password, setPassword] = useState('')
   const [isSignup, setIsSignup] = useState(false)
   const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
 
   async function handleSubmit(e) {
     e.preventDefault()
     setError('')
-    const fn = isSignup ? supabase.auth.signUp : supabase.auth.signInWithPassword
-    const { error: err } = await fn({ email, password })
-    if (err) setError(err.message)
-    else navigate('/')
+    setLoading(true)
+    try {
+      const { error: err } = isSignup
+        ? await supabase.auth.signUp({ email, password })
+        : await supabase.auth.signInWithPassword({ email, password })
+      if (err) setError(err.message)
+      else navigate('/')
+    } catch (e) {
+      setError('操作失败：' + (e.message || '请检查网络连接'))
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -35,8 +44,9 @@ export default function Login() {
           className="w-full px-4 py-2 border rounded-lg"
         />
         {error && <p className="text-red-500 text-sm">{error}</p>}
-        <button type="submit" className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700">
-          {isSignup ? '注册' : '登录'}
+        <button type="submit" disabled={loading}
+          className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50">
+          {loading ? '处理中...' : (isSignup ? '注册' : '登录')}
         </button>
       </form>
       <p className="text-center mt-4 text-sm text-gray-600">

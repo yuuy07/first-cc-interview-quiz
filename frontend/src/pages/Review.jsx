@@ -44,7 +44,13 @@ export default function Review() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold mb-4">错题本（{wrongAnswers.length} 题）</h1>
+      <div className="flex items-center justify-between mb-4">
+        <h1 className="text-2xl font-bold">错题本（{wrongAnswers.length} 题）</h1>
+        <button onClick={() => navigate(`/practice?topics=${encodeURIComponent(topics.join(','))}&wrong_only=1`)}
+          className="text-sm bg-blue-500 text-white px-3 py-1.5 rounded-lg hover:bg-blue-600">
+          复习全部错题
+        </button>
+      </div>
 
       <div className="flex gap-2 mb-4 flex-wrap">
         <button onClick={() => setFilter('')}
@@ -65,8 +71,10 @@ export default function Review() {
             <p className="text-sm text-gray-500 mt-1">
               {w.questions?.topic} · 答错 {w.attempt_count} 次 · 上次 {new Date(w.last_reviewed).toLocaleDateString()}
             </p>
-            <button onClick={() => navigate(`/practice?topics=${encodeURIComponent(w.questions?.topic)}`)}
-              className="text-blue-600 text-sm mt-2">再练一次 →</button>
+            {w.questions?.topic && (
+              <button onClick={() => navigate(`/practice?topics=${encodeURIComponent(w.questions.topic)}&wrong_only=1`)}
+                className="text-blue-600 text-sm mt-2">再练一次 →</button>
+            )}
           </div>
         ))}
       </div>

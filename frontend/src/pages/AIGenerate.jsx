@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react'
 import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { supabase } from '../lib/supabase'
-import { generateQuestion, evaluateAnswer } from '../lib/deepseek'
-import { getBuiltInDocs, getUploadedDocs, searchDocuments } from '../lib/docStore'
+import { useAIGenerate, useAIEval } from '../hooks/useAIGenerate'
+import { getBuiltInDocs, getUploadedDocs } from '../lib/docStore'
 
 export default function AIGenerate() {
   const [topics, setTopics] = useState([])
@@ -12,15 +12,13 @@ export default function AIGenerate() {
   const [questionType, setQuestionType] = useState('subjective')
   const [availableDocs, setAvailableDocs] = useState([])
   const [selectedDocs, setSelectedDocs] = useState({})
-  const [question, setQuestion] = useState(null)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState(null)
+  const [user, setUser] = useState(null)
   const [userAnswer, setUserAnswer] = useState('')
   const [selectedChoice, setSelectedChoice] = useState(null)
-  const [evalResult, setEvalResult] = useState(null)
-  const [evalLoading, setEvalLoading] = useState(false)
   const [showAnswer, setShowAnswer] = useState(false)
-  const [user, setUser] = useState(null)
+
+  const { question, loading, error, handleGenerate } = useAIGenerate(selectedTopic, keywords, questionType, selectedDocs)
+  const { evalResult, evalLoading, handleSubmit, resetEval } = useAIEval(question, selectedTopic, keywords, questionType)
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUser(data?.user ?? null))
@@ -41,124 +39,14 @@ export default function AIGenerate() {
   }, [])
 
   function reset() {
-    setQuestion(null)
     setUserAnswer('')
     setSelectedChoice(null)
-    setEvalResult(null)
-    setEvalLoading(false)
     setShowAnswer(false)
-    setError(null)
+    resetEval()
   }
 
   function toggleDoc(key) {
     setSelectedDocs(prev => ({ ...prev, [key]: !prev[key] }))
-  }
-
-  async function handleGenerate() {
-    const apiKey = localStorage.getItem('deepseek_api_key')
-    if (!apiKey) { setError('请先在设置中填入 DeepSeek API Key'); return }
-    if (!selectedTopic) { setError('请选择话题'); return }
-
-    const activeDocIds = Object.entries(selectedDocs).filter(([, v]) => v).map(([k]) => k)
-    if (activeDocIds.length === 0) { setError('请至少选择一个参考文档'); return }
-
-    setLoading(true)
-    setError(null)
-    reset()
-
-    try {
-      const searchKw = keywords || selectedTopic
-      const excerpts = await searchDocuments(activeDocIds, searchKw)
-
-      const docContext = excerpts.length > 0
-        ? '以下是参考文档中与题目相关的内容：\n\n' + excerpts.map(e =>
-            `[${e.source} - ${e.keyword}]\n${e.excerpt}`
-          ).join('\n\n---\n\n')
-        : ''
-
-      const result = await generateQuestion({
-        topic: selectedTopic,
-        keywords: keywords || undefined,
-        questionType,
-        docContext,
-        apiKey,
-      })
-      setQuestion(result)
-    } catch (e) {
-      setError('出题失败：' + e.message)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  async function saveToReview(wasCorrect) {
-    if (!user || !question) return
-
-    const qType = questionType === 'choice'
-      ? (question.choices?.length === 2 ? 'judge' : 'choice')
-      : 'subjective'
-
-    // Insert the AI question into questions table
-    const { data: qData, error: qErr } = await supabase.from('questions').insert({
-      topic: selectedTopic,
-      subtopic: keywords || 'AI出题',
-      question: question.question,
-      answer: question.answer,
-      choices: question.choices || null,
-      correct_idx: question.correct_idx ?? null,
-      difficulty: 3,
-      tags: ['ai_generated'],
-      code_blocks: [],
-      question_type: qType,
-      source_id: null,
-      display_order: Date.now(),
-    }).select('id').single()
-
-    if (qErr) { console.error('保存题目失败:', qErr.message); return }
-
-    // Insert user_progress
-    await supabase.from('user_progress').upsert({
-      user_id: user.id,
-      question_id: qData.id,
-      status: wasCorrect ? 'correct' : 'wrong',
-      attempt_count: 1,
-      last_answer: userAnswer || (question.choices?.[selectedChoice] || ''),
-      last_reviewed: new Date().toISOString(),
-      session_type: 'quiz',
-    }, { onConflict: 'user_id,question_id,session_type' })
-  }
-
-  async function handleSubmit() {
-    if (questionType === 'choice') {
-      if (selectedChoice === null) return
-      const correct = selectedChoice === question.correct_idx
-      setEvalResult({
-        score: correct ? 10 : 0,
-        feedback: correct
-          ? '回答正确！'
-          : `回答错误。正确答案是选项 ${question.correct_idx + 1}：${question.choices[question.correct_idx]}`,
-        strengths: correct ? ['正确选择了答案'] : [],
-        weaknesses: correct ? [] : ['答案选择错误'],
-      })
-      setShowAnswer(true)
-      if (!correct) saveToReview(false)
-      return
-    }
-
-    if (!userAnswer.trim()) return
-    const apiKey = localStorage.getItem('deepseek_api_key')
-    setEvalLoading(true)
-    try {
-      const result = await evaluateAnswer(question.question, question.answer, userAnswer, apiKey)
-      setEvalResult(result)
-      setShowAnswer(true)
-      const score = result?.score || 0
-      if (score < 5) saveToReview(false)
-    } catch (e) {
-      setError('批改失败：' + e.message)
-    } finally {
-      setEvalLoading(false)
-    }
   }
 
   return (
@@ -187,21 +75,17 @@ export default function AIGenerate() {
           <div className="flex gap-3">
             <label className="flex items-center gap-2 p-2 border rounded-lg cursor-pointer hover:bg-gray-50">
               <input type="radio" name="qtype" checked={questionType === 'subjective'}
-                onChange={() => setQuestionType('subjective')} />
-              主观题
+                onChange={() => setQuestionType('subjective')} />主观题
             </label>
             <label className="flex items-center gap-2 p-2 border rounded-lg cursor-pointer hover:bg-gray-50">
               <input type="radio" name="qtype" checked={questionType === 'choice'}
-                onChange={() => setQuestionType('choice')} />
-              选择题
+                onChange={() => setQuestionType('choice')} />选择题
             </label>
           </div>
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            参考文档（AI 将从这些文档中查找相关内容出题）
-          </label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">参考文档</label>
           <div className="space-y-1 max-h-40 overflow-y-auto">
             {availableDocs.map(doc => {
               const key = doc.id || doc.name
@@ -227,9 +111,7 @@ export default function AIGenerate() {
 
       {question && (
         <div className="bg-white rounded-xl shadow-sm p-6 mb-4">
-          <div className="flex items-start justify-between mb-3">
-            <h2 className="text-lg font-medium flex-1">{question.question}</h2>
-          </div>
+          <h2 className="text-lg font-medium mb-3">{question.question}</h2>
 
           {questionType === 'choice' && question.choices && (
             <div className="space-y-2 mb-4">
@@ -248,16 +130,14 @@ export default function AIGenerate() {
           {questionType === 'subjective' && !evalResult && (
             <textarea value={userAnswer} onChange={e => setUserAnswer(e.target.value)}
               placeholder="输入你的答案..."
-              className="w-full h-32 p-3 border rounded-lg resize-y mb-3"
-            />
+              className="w-full h-32 p-3 border rounded-lg resize-y mb-3" />
           )}
 
           {!evalResult && (
             <div className="flex gap-2">
-              <button onClick={handleSubmit} disabled={
+              <button onClick={() => handleSubmit(user, userAnswer, selectedChoice)} disabled={
                 (questionType === 'subjective' && !userAnswer.trim()) ||
-                (questionType === 'choice' && selectedChoice === null) ||
-                evalLoading
+                (questionType === 'choice' && selectedChoice === null) || evalLoading
               }
                 className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 disabled:opacity-50">
                 {evalLoading ? '批改中...' : '📝 提交答案'}
@@ -283,9 +163,7 @@ export default function AIGenerate() {
                   <ul className="list-disc ml-5 text-orange-700">{evalResult.weaknesses.map((w, i) => <li key={i}>{w}</li>)}</ul>
                 </div>
               )}
-              {evalResult.score < 5 && (
-                <p className="text-xs text-gray-400 mt-2">（已自动记入错题本）</p>
-              )}
+              {evalResult.score < 5 && <p className="text-xs text-gray-400 mt-2">（已自动记入错题本）</p>}
             </div>
           )}
 
@@ -298,9 +176,7 @@ export default function AIGenerate() {
 
           {evalResult && (
             <div className="flex gap-2 mt-4">
-              <button onClick={handleGenerate} className="bg-blue-600 text-white px-4 py-2 rounded-lg">
-                🎯 再来一题
-              </button>
+              <button onClick={reset} className="bg-blue-600 text-white px-4 py-2 rounded-lg">🎯 再来一题</button>
             </div>
           )}
         </div>

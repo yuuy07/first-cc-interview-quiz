@@ -1,8 +1,10 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import LoadingSpinner from '../components/LoadingSpinner'
 
 export default function Search() {
+  const navigate = useNavigate()
   const [query, setQuery] = useState('')
   const [results, setResults] = useState([])
   const [loading, setLoading] = useState(false)
@@ -40,7 +42,8 @@ export default function Search() {
 
       <div className="space-y-3">
         {results.map((q, i) => (
-          <div key={i} className="bg-white rounded-lg p-4 border">
+          <div key={i} onClick={() => navigate(`/practice?topics=${encodeURIComponent(q.topic)}`)}
+            className="bg-white rounded-lg p-4 border cursor-pointer hover:shadow-md transition-shadow">
             <p className="font-medium">{q.question}</p>
             <p className="text-sm text-gray-500 mt-1">{q.topic}{q.subtopic ? ` > ${q.subtopic}` : ''}</p>
           </div>
